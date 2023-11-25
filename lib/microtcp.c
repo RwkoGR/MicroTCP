@@ -73,12 +73,13 @@ int microtcp_bind (microtcp_sock_t *socket, const struct sockaddr *address, sock
 int microtcp_connect (microtcp_sock_t *socket, const struct sockaddr *address, socklen_t address_len){
     size_t client_seq_num = 0;
     microtcp_header_t *header = malloc(sizeof(microtcp_header_t));
-    uint32_t checksum_num = 0;
+    uint32_t retrieved_checksum = 0, checksum_num = 0, server_seq_num = 0;
+    struct sockaddr addr = *address;
 
-    socket->recvbuf = malloc(sizeof(uint8_t));  //Allocate space for the recvbuffer and initialize
-    memset(socket->recvbuf, 0, sizeof(uint8_t));
-    socket->sendbuf = malloc(sizeof(uint8_t));  //Allocate space for the sendbuffer and initialize
-    memset(socket->sendbuf, 0, sizeof(uint8_t));
+    socket->recvbuf = malloc(sizeof(microtcp_header_t));  //Allocate space for the recvbuffer and initialize
+    memset(socket->recvbuf, 0, sizeof(microtcp_header_t));
+    socket->sendbuf = malloc(sizeof(microtcp_header_t));  //Allocate space for the sendbuffer and initialize
+    memset(socket->sendbuf, 0, sizeof(microtcp_header_t));
 
     srand((unsigned int)time(NULL));            //Get a random value for the clients_sequence number
     client_seq_num = (size_t)rand();
@@ -92,25 +93,94 @@ int microtcp_connect (microtcp_sock_t *socket, const struct sockaddr *address, s
     header->future_use1 = 0;
     header->future_use2 = 0;
     header->window = socket->curr_win_size; //NOT SURE
-    // header->checksum = 0;
-    header->control = 0b0000000000000010;
+    header->checksum = 0;
+    header->control = 0b0000000000000010;   //SYN Package
 
   
-    memcpy(socket->sendbuf, header, sizeof(header));
-    checksum_num = crc32(socket->sendbuf,sizeof(socket->sendbuf));
+    memcpy(socket->sendbuf, header, sizeof(microtcp_header_t));
+    checksum_num = crc32(socket->sendbuf,sizeof(microtcp_header_t));
     header->checksum = checksum_num;
-    printf("(!)Checksum = %d\n",header->checksum);
-    printf("(!)ack client= %d\n",header->seq_number);
 
-    memset(socket->sendbuf,0,sizeof(header));
-
-    memcpy(socket->sendbuf, header, sizeof(header));
-    printf("(!)Checksum = %d\n",header->checksum);
-    if(sendto(socket->sd,socket->sendbuf,sizeof(socket->sendbuf),0,address,address_len) == -1){ //SYN
+    memset(socket->sendbuf,0,sizeof(microtcp_header_t));
+    memcpy(socket->sendbuf, header, sizeof(microtcp_header_t));
+   
+    if(sendto(socket->sd, socket->sendbuf, sizeof(microtcp_header_t), 0, address, address_len) == -1){ //SYN
         perror(" COULD NOT SEND SYN PACKET! ");
+        exit(EXIT_FAILURE);
+    }
+    else{printf("(!) SENT SYN PACKAGE YAY!\n\n");}
+
+
+
+    //Receiving SYN_ACK
+    if(recvfrom(socket->sd, socket->recvbuf, sizeof(microtcp_header_t),0, &addr, &address_len) == -1){ //SYN
+        perror(" COULD NOT RECEIVE SYN_ACK PACKET! ");
         exit(0);
     }
-    else{printf("SENT SYN PACKAGE YAY!\n");}
+    else printf("RECEIVED SYN_ACK PACKAGE YAY!\n");
+    
+    memset(header,0,sizeof(microtcp_header_t));
+    //Retrieve the data of the header of the received packet
+    memcpy(header, socket->recvbuf, sizeof(microtcp_header_t));
+
+    //Check if checksum is correct
+    retrieved_checksum = header->checksum;
+    header->checksum = 0;
+    memset(socket->recvbuf,0,sizeof(microtcp_header_t));
+    memcpy(socket->recvbuf, header, sizeof(microtcp_header_t));
+    checksum_num = crc32(socket->recvbuf,sizeof(microtcp_header_t));
+    if(retrieved_checksum != checksum_num){
+        perror(" (!) Package has not been received correctly! ");
+        exit(EXIT_FAILURE);
+    }
+    printf("Package received correctly\n");
+    
+    printf("SYN_ACK - checksum: %d\n",header->checksum);
+    printf("SYN_ACK - future_use0: %d\n",header->future_use0);
+    printf("SYN_ACK - future_use1: %d\n",header->future_use1);
+    printf("SYN_ACK - future_use2: %d\n",header->future_use2);
+    printf("SYN_ACK - ack_number: %d\n",header->ack_number);
+    printf("SYN_ACK - seq_number: %d\n",header->seq_number);
+    printf("SYN_ACK - control: %d\n",header->control);
+    printf("SYN_ACK - data_len: %d\n",header->data_len);
+    printf("SYN_ACK - window: %d\n",header->window);
+    printf("\n\n");
+
+    socket->seq_number = client_seq_num;
+
+
+    //Save important data and reset header
+    server_seq_num = header->seq_number;
+    memset(header, 0, sizeof(microtcp_header_t));
+
+    //Create header of the ACK packet
+    header->data_len = 0;
+    header->ack_number = server_seq_num + 1;
+    header->seq_number = client_seq_num + 1;
+    header->future_use0 = 0;
+    header->future_use1 = 0;
+    header->future_use2 = 0;
+    header->window = socket->curr_win_size; //NOT SURE
+    header->checksum = 0;
+    header->control = 0b000000000001000;   //SYN Package
+  
+    memcpy(socket->sendbuf, header, sizeof(microtcp_header_t));
+    checksum_num = crc32(socket->sendbuf,sizeof(microtcp_header_t));
+    header->checksum = checksum_num;
+    memset(socket->sendbuf,0,sizeof(microtcp_header_t));
+    memcpy(socket->sendbuf, header, sizeof(microtcp_header_t));
+   
+    //Sending ACK packet
+    if(sendto(socket->sd, socket->sendbuf, sizeof(microtcp_header_t), 0, address, address_len) == -1){ //SYN
+        perror(" COULD NOT SEND ACK PACKET! ");
+        exit(EXIT_FAILURE);
+    }
+    else printf("(!) SENT ACK PACKAGE YAY!\n\n");
+
+
+    free(socket->recvbuf);
+    free(header);
+    free(socket->sendbuf);
     return 1;
 
     // recvfrom(); //SYN-ACK
@@ -128,46 +198,120 @@ int microtcp_accept (microtcp_sock_t *socket, struct sockaddr *address,socklen_t
     size_t server_seq_num = 0;
     struct sockaddr_in *add_in;
     microtcp_header_t *header = malloc(sizeof(microtcp_header_t));
-    uint32_t checksum_num = 0;
+    microtcp_header_t data;
+    uint32_t retrieved_checksum = 0,checksum_num = 0, clients_seq_num = 0;
 
-    socket->recvbuf = malloc(sizeof(uint8_t));  //Allocate space for the recvbuffer and initialize
-    memset(socket->recvbuf, 0, sizeof(uint8_t));
-    socket->sendbuf = malloc(sizeof(uint8_t));  //Allocate space for the sendbuffer and initialize
-    memset(socket->sendbuf, 0, sizeof(uint8_t));
+    socket->recvbuf = malloc(sizeof(microtcp_header_t));  //Allocate space for the recvbuffer and initialize
+    memset(socket->recvbuf, 0, sizeof(microtcp_header_t));
+    socket->sendbuf = malloc(sizeof(microtcp_header_t));  //Allocate space for the sendbuffer and initialize
+    memset(socket->sendbuf, 0, sizeof(microtcp_header_t));
 
-    // srand((unsigned int)time(NULL));            //Get a random value for the clients_sequence number
-    // server_seq_num = (size_t)rand();
-    // socket->seq_number = server_seq_num;
-
-    // //Create header of the SYN packet
-    // header->data_len = 0;
-    // header->ack_number = 0;
-    // header->seq_number = server_seq_num;
-    // header->future_use0 = 0;
-    // header->future_use1 = 0;
-    // header->future_use2 = 0;
-    // header->window = socket->curr_win_size; //NOT SURE
-    // header->checksum = 0;
-    // header->control = 0b0000000000000010;
-
-
-    //FInd clients' address
+    //Find clients' address
     add_in = (struct sockaddr_in *)address;
     add_in->sin_family = AF_INET;
     add_in->sin_addr.s_addr = INADDR_ANY;   
+    socklen_t addrlen = sizeof(*add_in);
 
-
-
-    if(recvfrom(socket->sd,socket->recvbuf,sizeof(socket->recvbuf),0,add_in->sin_addr.s_addr,sizeof(add_in->sin_addr.s_addr)) == -1){ //SYN
-        perror(" COULD NOT RECIEVE SYN PACKET! ");
-        exit(0);
+    if(recvfrom(socket->sd,socket->recvbuf,sizeof(microtcp_header_t),0,(struct sockaddr *)add_in, &addrlen) == -1){ //SYN
+        perror(" COULD NOT RECIEVE PACKET! ");
+        exit(EXIT_FAILURE);
     }
-    else{printf("RECIEVED SYN PACKAGE YAY!\n");}
+    else printf("RECIEVED SYN PACKAGE YAY!\n");
+
+    //Retrieve the data of the header of the received packet
     memcpy(header, socket->recvbuf, sizeof(microtcp_header_t));
-    printf("Checksum recieved: %d\n",header->checksum);
-    printf("client recieved: %d\n",header->seq_number);
+
+    //Check if checksum is correct
+    retrieved_checksum = header->checksum;
+    header->checksum = 0;
+    memcpy (socket->recvbuf, header, sizeof(microtcp_header_t));
+    checksum_num = crc32(socket->recvbuf, sizeof(microtcp_header_t));
+    if(retrieved_checksum != checksum_num){
+        perror(" (!) Package has not been received correctly! ");
+        exit(EXIT_FAILURE);
+    }
+    printf("Package received correctly\n");
     
-    address = ((struct sockaddr *)add_in);
+    printf("SYN - checksum: %d\n",header->checksum);
+    printf("SYN - future_use0: %d\n",header->future_use0);
+    printf("SYN - future_use1: %d\n",header->future_use1);
+    printf("SYN - future_use2: %d\n",header->future_use2);
+    printf("SYN - ack_number: %d\n",header->ack_number);
+    printf("SYN - seq_number: %d\n",header->seq_number);
+    printf("SYN - control: %d\n",header->control);
+    printf("SYN - data_len: %d\n",header->data_len);
+    printf("SYN - window: %d\n",header->window);
+    printf("\n\n");
+    
+    clients_seq_num = header->seq_number;
+
+    //Create header of the ACK package
+    memset(header,0,sizeof(microtcp_header_t));
+
+    server_seq_num = (size_t)rand();
+    socket->seq_number = server_seq_num;
+
+    header->data_len = 0;
+    header->ack_number = clients_seq_num + 1;
+    header->seq_number = server_seq_num;
+    header->future_use0 = 0;
+    header->future_use1 = 0;
+    header->future_use2 = 0;
+    header->window = socket->curr_win_size; //NOT SURE
+    header->checksum = 0;
+    header->control = 0b0000000000001010; //Ack Syn
+
+    
+    memcpy(socket->sendbuf, header, sizeof(microtcp_header_t));
+    checksum_num = crc32(socket->sendbuf, sizeof(microtcp_header_t));
+    header->checksum = checksum_num;
+    memset(socket->sendbuf, 0, sizeof(microtcp_header_t));
+    memcpy(socket->sendbuf, header, sizeof(microtcp_header_t));
+ 
+    //Sending SYN_ACK 
+    if(sendto(socket->sd, socket->sendbuf, sizeof(microtcp_header_t), 0, (struct sockaddr *)add_in, addrlen) == -1){
+        perror(" COULD NOT SENT SYN_ACK PACKET! ");
+        exit(EXIT_FAILURE);
+    }
+    else printf("(!) SENT SYN_ACK PACKAGE YAY!\n\n");
+
+    //Reciving ACK 
+    memset(header, 0, sizeof(microtcp_header_t));
+    if(recvfrom(socket->sd,socket->recvbuf,sizeof(microtcp_header_t),0,(struct sockaddr *)add_in, &addrlen) == -1){ //SYN
+        perror(" COULD NOT RECIEVE ACK PACKET! ");
+        exit(EXIT_FAILURE);
+    }else printf("RECIEVED ACK PACKAGE YAY!\n");
+
+    //Retrieve the data of the header of the received packet
+    memcpy(header, socket->recvbuf, sizeof(microtcp_header_t));
+
+    //Check if checksum is correct
+    retrieved_checksum = header->checksum;
+    header->checksum = 0;
+    memcpy (socket->recvbuf, header, sizeof(microtcp_header_t));
+    checksum_num = crc32(socket->recvbuf, sizeof(microtcp_header_t));
+    if(retrieved_checksum != checksum_num){
+        perror(" (!) Package has not been received correctly! ");
+        exit(EXIT_FAILURE);
+    }
+    printf("Package received correctly\n");
+
+    //Print to check
+    printf("ACK - checksum: %d\n",header->checksum);
+    printf("ACK - future_use0: %d\n",header->future_use0);
+    printf("ACK - future_use1: %d\n",header->future_use1);
+    printf("ACK - future_use2: %d\n",header->future_use2);
+    printf("ACK - ack_number: %d\n",header->ack_number);
+    printf("ACK - seq_number: %d\n",header->seq_number);
+    printf("ACK - control: %d\n",header->control);
+    printf("ACK - data_len: %d\n",header->data_len);
+    printf("ACK - window: %d\n",header->window);
+    printf("\n\n");
+
+    free(socket->recvbuf);
+    free(header);
+    free(socket->sendbuf);
+    
     return 1;
 }
 
