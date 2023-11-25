@@ -1,0 +1,40 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/mnt/c/Users/Rwko/Documents/MEGA/MEGAsync/CSD-SEM5/HY335-Computer Networks/Project_phase_A/HY335a_Project/lib/microtcp.h
+stdlib.h
+-
+stdio.h
+-
+sys/types.h
+-
+sys/socket.h
+-
+stdint.h
+-
+
+/mnt/c/Users/Rwko/Documents/MEGA/MEGAsync/CSD-SEM5/HY335-Computer Networks/Project_phase_A/HY335a_Project/test/test_microtcp_client.c
+stdio.h
+-
+sys/types.h
+-
+sys/socket.h
+-
+netinet/in.h
+-
+netdb.h
+-
+unistd.h
+-
+string.h
+-
+stdlib.h
+-
+../lib/microtcp.h
+/mnt/c/Users/Rwko/Documents/MEGA/MEGAsync/CSD-SEM5/HY335-Computer Networks/Project_phase_A/HY335a_Project/lib/microtcp.h
+

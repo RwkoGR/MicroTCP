@@ -1,0 +1,1 @@
+/usr/bin/c++   -Wextra  -rdynamic CMakeFiles/traffic_generator.dir/traffic_generator.cpp.o  -o traffic_generator  -Wl,-rpath,"/mnt/c/Users/Rwko/Documents/MEGA/MEGAsync/CSD-SEM5/HY335-Computer Networks/Project_phase_A/HY335a_Project/lib" ../lib/libmicrotcp.so 
