@@ -69,32 +69,31 @@ int main(int argc,char **argv){
         printf("\nServer Not Ready !!\n");
         exit(1);
     }
+    // struct sockaddr_in *k;
+    // k = (struct sockaddr_in *) clientSocket.client_IP;
+    // printf("CLIENT: %d\n",k->sin_addr.s_addr);
 
-    while(1)
-    {
-        printf("\nUser:-");
-        // memset(message, '\0', 10);
+    // printf("CLIENT: %lu\n",clientSocket.client_IP->sin_addr.s_addr);
 
-        gets(message);
+    printf("1\n");
+    microtcp_shutdown(&clientSocket,0);
+    printf("2\n");
+    // while(1)
+    // {
+    //     printf("\nUser:-");
+    //     // memset(message, '\0', 10);
 
-        n = write(clientSocket.sd, message, strlen(message)+1);
-        if( (strcmp(message,"q") == 0 ) || (strcmp(message,"Q") == 0 )){
-            printf("Wrong place...Socket Closed\n");
-            close(clientSocket.sd);
-            break;
-        }
-            //printf("Write:<%u>\n", n);
+    //     gets(message);
 
-        read(clientSocket.sd, received, sizeof(received));
-        if( (strcmp(received,"q") == 0 ) || (strcmp(received,"Q") == 0 )){
-            printf("Wrong place...Socket Closed\n");
-            close(clientSocket.sd);
-            break;
-        }
-        else{
-            printf("Server:- %s\n", received);
-        }
-    }
+    //     // n = write(clientSocket.sd, message, strlen(message)+1);
+    //     if( (strcmp(message,"q") == 0 ) || (strcmp(message,"Q") == 0 )){
+    //         printf("Wrong place...Socket Closed\n");
+    //         break;
+    //     }
+
+    //     read(clientSocket.sd, received, sizeof(received));
+    
+    // }
 
     return 0;
 }
