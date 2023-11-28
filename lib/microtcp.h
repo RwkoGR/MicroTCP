@@ -65,8 +65,8 @@ typedef enum
 typedef struct
 {
     int sd;                       /**< The underline UDP socket descriptor */
-    struct sockaddr *ip;
-    struct sockaddr_in *ip2;
+    struct sockaddr *server_ip;
+    struct sockaddr_in *client_ip;
 
     mircotcp_state_t state;       /**< The state of the microTCP socket */
     size_t init_win_size;         /**< The window size negotiated at the 3-way handshake */

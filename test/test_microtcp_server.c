@@ -71,10 +71,8 @@ int main(int argc,char **argv) {
         listen(serverSocket.sd,5);
         client_connected = microtcp_accept(&serverSocket,(struct sockaddr*)&client_addr,sizeof(client_addr));
         serverSocket.state = CLOSING_BY_PEER;
-        printf("zazazaza1\n");
+        
         microtcp_shutdown(&serverSocket, 0);
-        printf("zazazaza2");
-        // printf("SERVER: %lu\n",((struct sockaddr_in*)serverSocket.server_IP)->sin_addr.s_addr);
         
         if (-1 != client_connected){
             printf("Connection accepted:<%u>\n", client_connected);

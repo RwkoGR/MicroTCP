@@ -75,9 +75,7 @@ int main(int argc,char **argv){
 
     // printf("CLIENT: %lu\n",clientSocket.client_IP->sin_addr.s_addr);
 
-    printf("1\n");
     microtcp_shutdown(&clientSocket,0);
-    printf("2\n");
     // while(1)
     // {
     //     printf("\nUser:-");
