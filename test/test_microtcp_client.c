@@ -63,15 +63,32 @@ int main(int argc,char **argv){
         exit(1);
     }
 
-    char *buffer = malloc(100);
-    fgets(buffer, 50, stdin);
-    size_t length = strlen(buffer);
+    char buffer[100];
+    while(1){
+        printf("Client: ");
+        if(fgets(buffer, sizeof(buffer), stdin) != NULL){
+            // Remove the newline character, if present
+            size_t length = strlen(buffer);
+            if (length > 0 && buffer[length - 1] == '\n') {
+                buffer[length - 1] = '\0';
+            }
+            printf("%s\n", buffer);
+        }
+        else{
+            perror("fgets failed");
+        }
+        size_t length = strlen(buffer);
+        microtcp_send(&clientSocket, buffer, strlen(buffer), 0);
+        memset(buffer, 0, sizeof(buffer));
+    
+        microtcp_recv(&clientSocket, &buffer, sizeof(buffer), 0);
+        printf("Server: %s\n",buffer);
+        memset(buffer, 0, sizeof(buffer));
+    }
 
-    microtcp_send(&clientSocket, buffer, length, 0);
 
     // microtcp_shutdown(&clientSocket,0);
     
-    free(buffer);
 
     return 0;
 }

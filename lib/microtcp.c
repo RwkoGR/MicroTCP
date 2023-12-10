@@ -313,7 +313,7 @@ int microtcp_accept (microtcp_sock_t *socket, struct sockaddr *address,socklen_t
 
     //Reciving ACK 
     memset(header, 0, sizeof(microtcp_header_t));
-    if(recvfrom(socket->sd,socket->recvbuf,sizeof(microtcp_header_t), 0,(struct sockaddr *)add_in, &addrlen) == -1){ //SYN
+    if(recvfrom(socket->sd,socket->recvbuf,sizeof(microtcp_header_t), 0,(struct sockaddr *)add_in, &addrlen) == -1){ //ACK
         perror(" COULD NOT RECEIVE ACK PACKET! ");
         exit(EXIT_FAILURE);
     }else printf("RECEIVED ACK PACKAGE YAY!\n");
@@ -670,7 +670,6 @@ ssize_t microtcp_send (microtcp_sock_t *socket, const void *buffer, size_t lengt
         printf("(!)Memory allocation failed!\n");
         exit(EXIT_FAILURE);
     }
-    printf("wtf l:%d\n",length);
 
     send_header->data_len = length;
     send_header->ack_number = socket->ack_number;
@@ -691,13 +690,12 @@ ssize_t microtcp_send (microtcp_sock_t *socket, const void *buffer, size_t lengt
     /*Create checksum number and add to the packet*/
     memset(socket->sendbuf, 0, packet_size);
     memcpy(socket->sendbuf, send_header, sizeof(microtcp_header_t));    //Add header
-    memcpy(socket->sendbuf + sizeof(microtcp_header_t), buffer, length);      //Add data
+    memcpy(socket->sendbuf + sizeof(microtcp_header_t), (char *)buffer, length);      //Add data
     checksum_num = crc32(socket->sendbuf, packet_size);
     send_header->checksum = checksum_num;
-    printf("checksum: %d\n",checksum_num);
     memset(socket->sendbuf, 0, packet_size);
     memcpy(socket->sendbuf, send_header, sizeof(microtcp_header_t));    //Add header
-    memcpy(socket->sendbuf + sizeof(microtcp_header_t), buffer, length);      //Add data
+    memcpy(socket->sendbuf + sizeof(microtcp_header_t), (char *)buffer, length);      //Add data
     
     /*Server sends a package!*/
     if(socket->server_ip == NULL){
@@ -753,28 +751,22 @@ ssize_t microtcp_recv (microtcp_sock_t *socket, void *buffer, size_t length, int
         else printf("RECEIVED PACKAGE YAY!\n");
     }
     
-    //TODO: FIX!!!
-
-
     
     //Retrieve the data of the header of the received packet
     memcpy(recv_header, socket->recvbuf, sizeof(microtcp_header_t));
-    printf("checksum: %d\n",recv_header->checksum);
-    char **buffer_msg = malloc(recv_header->data_len);
-    memcpy(buffer_msg, socket->recvbuf + sizeof(microtcp_header_t), recv_header->data_len);
-    printf("length:%d\n",recv_header->data_len);
-    // strcpy(*buffer_msg, "\0");
+    char **buffer_msg;
+    buffer_msg = malloc(recv_header->data_len);
+    memcpy(buffer_msg, socket->recvbuf + sizeof(microtcp_header_t), (size_t)recv_header->data_len);
 
     //Check if checksum is correct
     retrieved_checksum = recv_header->checksum;
     recv_header->checksum = 0;
     packet_size = sizeof(microtcp_header_t) + recv_header->data_len;
-    realloc(socket->recvbuf, packet_size);
+    socket->recvbuf = realloc(socket->recvbuf, packet_size);
     memset(socket->recvbuf, 0, packet_size);
     memcpy(socket->recvbuf, recv_header, sizeof(microtcp_header_t));
     memcpy(socket->recvbuf + sizeof(microtcp_header_t), buffer_msg, recv_header->data_len);
     checksum_num = crc32(socket->recvbuf, packet_size);
-    printf("checksum: %d\n",checksum_num);
 
     if(retrieved_checksum != checksum_num){
         perror(" (!) Package has not been received correctly! ");
@@ -795,7 +787,12 @@ ssize_t microtcp_recv (microtcp_sock_t *socket, void *buffer, size_t length, int
 
     memset(buffer, 0, length);
     memcpy(buffer, socket->recvbuf + sizeof(microtcp_header_t), recv_header->data_len);
+    socket->ack_number = recv_header->seq_number + recv_header->data_len;
     
     free(recv_header);
     free(socket->recvbuf);
+    free(buffer_msg);
 }
+
+
+//TODO: Fix sequence and ack numbers

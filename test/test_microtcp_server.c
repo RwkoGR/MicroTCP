@@ -66,25 +66,43 @@ int main(int argc,char **argv) {
         printf("Bind Success!\n");
     }
 
-    char *buffer = malloc(100);
    
 
-    while(1){   
-        client_connected = microtcp_accept(&serverSocket,(struct sockaddr*)&client_addr,sizeof(client_addr));
+    client_connected = microtcp_accept(&serverSocket,(struct sockaddr*)&client_addr,sizeof(client_addr));
 
-        if (client_connected != -1){
-            printf("Connection accepted!\n");
+    if (client_connected != -1){
+        printf("Connection accepted!\n");
+    }
+    else{
+        printf("Connection not accepted!\n");
+    }
+
+
+    char buffer[100];
+    while(1){   
+        microtcp_recv(&serverSocket, &buffer, sizeof(buffer), 0);
+        printf("Client: %s\n",buffer);
+        memset(buffer, 0, sizeof(buffer));
+        
+        printf("Server: ");
+        if(fgets(buffer, sizeof(buffer), stdin) != NULL){
+            // Remove the newline character, if present
+            size_t length = strlen(buffer);
+            if (length > 0 && buffer[length - 1] == '\n') {
+                buffer[length - 1] = '\0';
+            }
+
+            printf("%s\n", buffer);
         }
         else{
-            printf("Connection not accepted!\n");
+            perror("fgets failed");
         }
+        size_t length = strlen(buffer);
+        microtcp_send(&serverSocket, buffer, strlen(buffer), 0);
+        memset(buffer, 0, sizeof(buffer));
+    
 
-
-        serverSocket.state = CLOSING_BY_PEER;
-        
-        microtcp_recv(&serverSocket, &buffer, sizeof(buffer), 0);
-        printf("Message: %s\n",&buffer);
-
+        // serverSocket.state = CLOSING_BY_PEER;
         // microtcp_shutdown(&serverSocket, 0);
         
 
