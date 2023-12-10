@@ -26,6 +26,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <stdint.h>
+#include <string.h>
 
 /*
  * Several useful constants
@@ -65,14 +66,14 @@ typedef enum
 typedef struct
 {
     int sd;                       /**< The underline UDP socket descriptor */
-    struct sockaddr *server_ip;
-    struct sockaddr_in *client_ip;
+    struct sockaddr *server_ip;     /**< Sockaddr for the server's ip(ADDED) */
+    struct sockaddr_in *client_ip;  /**< Sockaddr_in for the client's ip(ADDED) */
 
-    mircotcp_state_t state;       /**< The state of the microTCP socket */
+    mircotcp_state_t state;         /**< The state of the microTCP socket */
     size_t init_win_size;         /**< The window size negotiated at the 3-way handshake */
     size_t curr_win_size;         /**< The current window size */
 
-    uint8_t *sendbuf;             /*The *send* buffer of the TCP connection used to send messages
+    uint8_t *sendbuf;             /**< The *send* buffer of the TCP connection used to send messages
                                     to the network (ADDED)*/
 
     uint8_t *recvbuf;             /**< The *receive* buffer of the TCP

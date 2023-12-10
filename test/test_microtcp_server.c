@@ -38,12 +38,11 @@ int main(int argc,char **argv) {
     int client_connected;
     struct sockaddr_in client_addr,server_addr;
     struct hostent *ptrh;
-    int n=0; 
-    char message[100],received[100];
+
 
     //Check if port number is given
     if(argv[1] == NULL){
-        perror("No port added!Execute the command with \"test_microtcp_server [port_number]\" ");
+        perror("No port added!\nExecute the command with \"test_microtcp_server [port_number]\"");
         exit( EXIT_FAILURE );
     }
 
@@ -61,44 +60,36 @@ int main(int argc,char **argv) {
     
 
     if(microtcp_bind(&serverSocket,(struct sockaddr*)&server_addr,sizeof(server_addr)) == -1){
-        printf("Bind Failure\n");
+        printf("Bind Failure!\n");
     }
     else{
-        printf("Bind Success:<%u>\n", serverSocket.sd);
+        printf("Bind Success!\n");
     }
+
+    char *buffer = malloc(100);
+   
 
     while(1){   
-        listen(serverSocket.sd,5);
         client_connected = microtcp_accept(&serverSocket,(struct sockaddr*)&client_addr,sizeof(client_addr));
+
+        if (client_connected != -1){
+            printf("Connection accepted!\n");
+        }
+        else{
+            printf("Connection not accepted!\n");
+        }
+
+
         serverSocket.state = CLOSING_BY_PEER;
         
-        microtcp_shutdown(&serverSocket, 0);
+        microtcp_recv(&serverSocket, &buffer, sizeof(buffer), 0);
+        printf("Message: %s\n",&buffer);
+
+        // microtcp_shutdown(&serverSocket, 0);
         
-        if (-1 != client_connected){
-            printf("Connection accepted:<%u>\n", client_connected);
-        }
 
-        while(1){
-            n = read(client_connected, received, sizeof(received));
-
-            if( (strcmp(received,"q") == 0 ) || (strcmp(received,"Q") == 0 )){
-                
-                
-                printf("Wrong place...Socket Closed of Client\n");
-                // close(client_connected);
-                break;
-            }
-            else{
-                printf("\nUser:-%s", received);
-            }
-            printf("\nServer:-");
-            //  memset(message, '\0', 10);
-            gets(message);             
-            write(client_connected, message, sizeof(message));
-        }
     }
-
-    close(serverSocket.sd); printf("\nServer Socket Closed !!\n");
+    free(buffer);
 
     return 0;
 }

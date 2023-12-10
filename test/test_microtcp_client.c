@@ -38,13 +38,10 @@ int main(int argc,char **argv){
     struct sockaddr_in server_addr;
     struct hostent *ptrh;
 
-    char message[100];
-    char received[100];
-    int n = 0;
 
     //Check if port number is given
     if(argv[1] == NULL){
-        perror("No port added!Execute the command with \"test_microtcp_client [port_number]\" ");
+        perror("No port added!\nExecute the command with \"test_microtcp_client [port_number]\" \n");
         exit( EXIT_FAILURE );
     }
     clientSocket = microtcp_socket(AF_INET, SOCK_DGRAM, 0);
@@ -53,14 +50,10 @@ int main(int argc,char **argv){
         exit ( EXIT_FAILURE );
     }
     
-    // clientSocket = socket(AF_INET, SOCK_STREAM, 0);
-
     memset((char*)&server_addr, 0, sizeof(server_addr));
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(atoi(argv[1]));
-
-    /*  bind(clientSocket, (struct sockaddr*)&server_addr, sizeof(struct sockaddr)); */
 
     ptrh = gethostbyname("127.0.0.1");
     memcpy(&server_addr.sin_addr,ptrh->h_addr,ptrh->h_length);
@@ -69,29 +62,16 @@ int main(int argc,char **argv){
         printf("\nServer Not Ready !!\n");
         exit(1);
     }
-    // struct sockaddr_in *k;
-    // k = (struct sockaddr_in *) clientSocket.client_IP;
-    // printf("CLIENT: %d\n",k->sin_addr.s_addr);
 
-    // printf("CLIENT: %lu\n",clientSocket.client_IP->sin_addr.s_addr);
+    char *buffer = malloc(100);
+    fgets(buffer, 50, stdin);
+    size_t length = strlen(buffer);
 
-    microtcp_shutdown(&clientSocket,0);
-    // while(1)
-    // {
-    //     printf("\nUser:-");
-    //     // memset(message, '\0', 10);
+    microtcp_send(&clientSocket, buffer, length, 0);
 
-    //     gets(message);
-
-    //     // n = write(clientSocket.sd, message, strlen(message)+1);
-    //     if( (strcmp(message,"q") == 0 ) || (strcmp(message,"Q") == 0 )){
-    //         printf("Wrong place...Socket Closed\n");
-    //         break;
-    //     }
-
-    //     read(clientSocket.sd, received, sizeof(received));
+    // microtcp_shutdown(&clientSocket,0);
     
-    // }
+    free(buffer);
 
     return 0;
 }
