@@ -48,7 +48,7 @@ int main(int argc,char **argv) {
 
     serverSocket = microtcp_socket(AF_INET, SOCK_DGRAM, 0);
     if(serverSocket.sd == -1){
-        perror ( " SOCKET COULD NOT BE OPENED " );
+        perror ( " (!) SOCKET COULD NOT BE OPENED " );
         exit ( EXIT_FAILURE );
     }
 
@@ -60,7 +60,7 @@ int main(int argc,char **argv) {
     
 
     if(microtcp_bind(&serverSocket,(struct sockaddr*)&server_addr,sizeof(server_addr)) == -1){
-        printf("Bind Failure!\n");
+        printf("(!) Bind Failure!\n");
     }
     else{
         printf("Bind Success!\n");
@@ -74,13 +74,20 @@ int main(int argc,char **argv) {
         printf("Connection accepted!\n");
     }
     else{
-        printf("Connection not accepted!\n");
+        printf("(!) Connection not accepted!\n");
     }
 
 
     char buffer[100];
     while(1){   
         microtcp_recv(&serverSocket, &buffer, sizeof(buffer), 0);
+
+        if(!strcmp(buffer, "shutdown") || !strcmp(buffer, "SHUTDOWN")){
+            serverSocket.state = CLOSING_BY_PEER;
+            printf("(!) Initiating shutdown process!\n");
+            microtcp_shutdown(&serverSocket,0);
+        }
+
         printf("Client: %s\n",buffer);
         memset(buffer, 0, sizeof(buffer));
         
@@ -91,8 +98,6 @@ int main(int argc,char **argv) {
             if (length > 0 && buffer[length - 1] == '\n') {
                 buffer[length - 1] = '\0';
             }
-
-            printf("%s\n", buffer);
         }
         else{
             perror("fgets failed");
@@ -101,11 +106,6 @@ int main(int argc,char **argv) {
         microtcp_send(&serverSocket, buffer, strlen(buffer), 0);
         memset(buffer, 0, sizeof(buffer));
     
-
-        // serverSocket.state = CLOSING_BY_PEER;
-        // microtcp_shutdown(&serverSocket, 0);
-        
-
     }
     free(buffer);
 

@@ -41,12 +41,12 @@ int main(int argc,char **argv){
 
     //Check if port number is given
     if(argv[1] == NULL){
-        perror("No port added!\nExecute the command with \"test_microtcp_client [port_number]\" \n");
+        perror("(!) No port added!\nExecute the command with \"test_microtcp_client [port_number]\" \n");
         exit( EXIT_FAILURE );
     }
     clientSocket = microtcp_socket(AF_INET, SOCK_DGRAM, 0);
     if(clientSocket.sd == -1){
-        perror ( " SOCKET COULD NOT BE OPENED " );
+        perror ( " (!) SOCKET COULD NOT BE OPENED " );
         exit ( EXIT_FAILURE );
     }
     
@@ -59,7 +59,7 @@ int main(int argc,char **argv){
     memcpy(&server_addr.sin_addr,ptrh->h_addr,ptrh->h_length);
 
     if(microtcp_connect(&clientSocket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1){
-        printf("\nServer Not Ready !!\n");
+        printf("\n(!) Server Not Ready !!\n");
         exit(1);
     }
 
@@ -69,16 +69,23 @@ int main(int argc,char **argv){
         if(fgets(buffer, sizeof(buffer), stdin) != NULL){
             // Remove the newline character, if present
             size_t length = strlen(buffer);
-            if (length > 0 && buffer[length - 1] == '\n') {
+            if(length > 0 && buffer[length - 1] == '\n') {
                 buffer[length - 1] = '\0';
             }
-            printf("%s\n", buffer);
         }
         else{
             perror("fgets failed");
+            exit( EXIT_FAILURE );
         }
         size_t length = strlen(buffer);
         microtcp_send(&clientSocket, buffer, strlen(buffer), 0);
+
+        if(!strcmp(buffer, "shutdown") || !strcmp(buffer, "SHUTDOWN")){
+            printf("(!) Initiating shutdown process!\n");
+            microtcp_shutdown(&clientSocket,0);
+            exit( EXIT_SUCCESS );
+        }
+
         memset(buffer, 0, sizeof(buffer));
     
         microtcp_recv(&clientSocket, &buffer, sizeof(buffer), 0);
@@ -87,7 +94,7 @@ int main(int argc,char **argv){
     }
 
 
-    // microtcp_shutdown(&clientSocket,0);
+    
     
 
     return 0;
