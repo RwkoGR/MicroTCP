@@ -63,20 +63,21 @@ int main(int argc,char **argv){
         exit(1);
     }
 
-    char buffer[100];
+    char buffer[100000];
+    for(int i = 0; i < 8500; i++) buffer[i] = 'c';
     while(1){
-        printf("Client: ");
-        if(fgets(buffer, sizeof(buffer), stdin) != NULL){
-            // Remove the newline character, if present
-            size_t length = strlen(buffer);
-            if(length > 0 && buffer[length - 1] == '\n') {
-                buffer[length - 1] = '\0';
-            }
-        }
-        else{
-            perror("fgets failed");
-            exit( EXIT_FAILURE );
-        }
+        // printf("Client: ");
+        // if(fgets(buffer, sizeof(buffer), stdin) != NULL){
+        //     // Remove the newline character, if present
+        //     size_t length = strlen(buffer);
+        //     if(length > 0 && buffer[length - 1] == '\n') {
+        //         buffer[length - 1] = '\0';
+        //     }
+        // }
+        // else{
+        //     perror("fgets failed");
+        //     exit( EXIT_FAILURE );
+        // }
         size_t length = strlen(buffer);
         microtcp_send(&clientSocket, buffer, strlen(buffer), 0);
 

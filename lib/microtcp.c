@@ -23,9 +23,11 @@
 #include <netinet/in.h>
 
 
+
 void *memset(void *ptr, int x, size_t n);
 void *memcpy(void *dest, const void * src, size_t n);
 time_t time( time_t *second );
+
 
 
 microtcp_sock_t microtcp_socket (int domain, int type, int protocol){
@@ -101,9 +103,12 @@ int microtcp_connect (microtcp_sock_t *socket, const struct sockaddr *address, s
     }
     memset(socket->sendbuf, 0, sizeof(microtcp_header_t));
 
-    srand((unsigned int)time(NULL));            //Get a random value for the clients_sequence number
-    client_seq_num = (size_t)rand();
+    // srand((unsigned int)time(NULL));            //Get a random value for the clients_sequence number
+    client_seq_num = 0;
+    // (size_t)rand();
     socket->seq_number = client_seq_num;
+    socket->init_win_size = MICROTCP_WIN_SIZE - 32;
+    socket->curr_win_size = MICROTCP_WIN_SIZE - 32;
 
     //Create header of the SYN packet
     header->data_len = 0;
@@ -112,7 +117,7 @@ int microtcp_connect (microtcp_sock_t *socket, const struct sockaddr *address, s
     header->future_use0 = 0;
     header->future_use1 = 0;
     header->future_use2 = 0;
-    header->window = socket->curr_win_size; //NOT SURE
+    header->window = socket->init_win_size; //NOT SURE
     header->checksum = 0;
     header->control = 0b0000000000000010;   //SYN Package
 
@@ -180,7 +185,7 @@ int microtcp_connect (microtcp_sock_t *socket, const struct sockaddr *address, s
     header->future_use0 = 0;
     header->future_use1 = 0;
     header->future_use2 = 0;
-    header->window = socket->curr_win_size; //NOT SURE
+    header->window = socket->init_win_size; //NOT SURE
     header->checksum = 0;
     header->control = 0b000000000001000;   //SYN Package
   
@@ -197,21 +202,23 @@ int microtcp_connect (microtcp_sock_t *socket, const struct sockaddr *address, s
     }
     else printf("SENT ACK PACKAGE YAY!\n\n");
     socket->seq_number = header->seq_number;
+    socket->ack_number = header->ack_number;
+
 
     free(socket->recvbuf);
+    socket->recvbuf = malloc(MICROTCP_RECVBUF_LEN);  //Allocate space for the recvbuffer and initialize
+    if(socket->recvbuf == NULL){                      //with win_size
+        printf("(!) Memory allocation failed!\n");
+        exit(EXIT_FAILURE);
+    }
+    memset(socket->recvbuf, 0, sizeof(socket->recvbuf));
     free(header);
     free(socket->sendbuf);
+    socket->state = ESTABLISHED;
+
+
     return 1;
 
-    // recvfrom(); //SYN-ACK
-    // sendto();   //ACK
-
-    // if(){
-    //     socket->state = INVALID;
-    // }else{
-
-    // }
-    // socket->state = ESTABLISHED;
 }
 
 int microtcp_accept (microtcp_sock_t *socket, struct sockaddr *address,socklen_t address_len){
@@ -267,7 +274,6 @@ int microtcp_accept (microtcp_sock_t *socket, struct sockaddr *address,socklen_t
         return -1;
     }
     printf("Package received correctly\n");
-    
     printf("SYN - checksum: %d\n",header->checksum);
     printf("SYN - future_use0: %d\n",header->future_use0);
     printf("SYN - future_use1: %d\n",header->future_use1);
@@ -284,16 +290,19 @@ int microtcp_accept (microtcp_sock_t *socket, struct sockaddr *address,socklen_t
     //Create header of the ACK package
     memset(header,0,sizeof(microtcp_header_t));
 
-    server_seq_num = (size_t)rand();
+    server_seq_num = 0;
+    //(size_t)rand();
     socket->seq_number = server_seq_num;
-
+    socket->init_win_size = MICROTCP_WIN_SIZE - 32;
+    socket->curr_win_size = MICROTCP_WIN_SIZE - 32;
+    
     header->data_len = 0;
     header->ack_number = clients_seq_num + 1;
     header->seq_number = server_seq_num;
     header->future_use0 = 0;
     header->future_use1 = 0;
     header->future_use2 = 0;
-    header->window = socket->curr_win_size; //NOT SURE
+    header->window = socket->init_win_size;
     header->checksum = 0;
     header->control = 0b0000000000001010; //Ack Syn
 
@@ -310,6 +319,7 @@ int microtcp_accept (microtcp_sock_t *socket, struct sockaddr *address,socklen_t
         return -1;
     }
     else printf("SENT SYN_ACK PACKAGE YAY!\n\n");
+
 
     //Reciving ACK 
     memset(header, 0, sizeof(microtcp_header_t));
@@ -345,7 +355,17 @@ int microtcp_accept (microtcp_sock_t *socket, struct sockaddr *address,socklen_t
     printf("ACK - window: %d\n",header->window);
     printf("\n\n");
 
+
+    socket->state = ESTABLISHED;
+    socket->seq_number += 1;
+
     free(socket->recvbuf);
+    socket->recvbuf = malloc(MICROTCP_RECVBUF_LEN);  //Allocate space for the recvbuffer and initialize
+    if(socket->recvbuf == NULL){                      //with init_win_size
+        printf("(!) Memory allocation failed!\n");
+        exit(EXIT_FAILURE);
+    }
+    memset(socket->recvbuf, 0, sizeof(microtcp_header_t));
     free(header);
     free(socket->sendbuf);
     
@@ -363,12 +383,6 @@ int microtcp_shutdown (microtcp_sock_t *socket, int how){
         exit(EXIT_FAILURE);
     }
 
-    socket->recvbuf = malloc(sizeof(microtcp_header_t));  //Allocate space for the recvbuffer and initialize
-    if(socket->recvbuf == NULL){
-        printf("(!) Memory allocation failed!\n");
-        exit(EXIT_FAILURE);
-    }
-    memset(socket->recvbuf, 0, sizeof(microtcp_header_t));
     socket->sendbuf = malloc(sizeof(microtcp_header_t));  //Allocate space for the sendbuffer and initialize
 
     if(socket->sendbuf == NULL){
@@ -430,7 +444,7 @@ int microtcp_shutdown (microtcp_sock_t *socket, int how){
         header->future_use0 = 0;
         header->future_use1 = 0;
         header->future_use2 = 0;
-        header->window = socket->curr_win_size; //NOT SURE
+        header->window = socket->init_win_size; //NOT SURE
         header->checksum = 0;
         header->control = 0b0000000000001000; //ACK
 
@@ -454,7 +468,8 @@ int microtcp_shutdown (microtcp_sock_t *socket, int how){
         //Sending FIN_ACK package
         //Create header of the ACK package
         memset(header,0,sizeof(microtcp_header_t));
-        server_seq_num = (size_t)rand();
+        server_seq_num = 0;
+        //(size_t)rand();
 
         header->data_len = 0;
         header->ack_number = 0;
@@ -516,6 +531,7 @@ int microtcp_shutdown (microtcp_sock_t *socket, int how){
         printf("\n\n");
         
         clients_seq_num = header->seq_number;
+
         printf("(!) Connection closed by peer!\n");
     }
     //Client-side
@@ -664,11 +680,232 @@ int microtcp_shutdown (microtcp_sock_t *socket, int how){
     free(header);
 }
 
-ssize_t microtcp_send (microtcp_sock_t *socket, const void *buffer, size_t length,int flags){
-    microtcp_header_t *send_header = malloc(sizeof(microtcp_header_t));
-    size_t packet_size = sizeof(microtcp_header_t) + length;
-    uint32_t checksum_num = 0;
+ssize_t microtcp_send (microtcp_sock_t *socket, const void *buffer, size_t length, int flags){
+    size_t remaining = 0, bytes_to_send = 0, data_sent = 0;
+    int chunks = 0, result = 0;
 
+    printf("1length: %d\n",length);
+    remaining = length;
+    while(data_sent < length){
+        printf("in while\n");
+        printf("2length: %d\n",length);
+        printf("socket->curr_win_size: %d\n",socket->curr_win_size );
+        printf("socket->cwnd: %d\n",socket->cwnd );
+        printf("remaining: %d\n",remaining);
+        bytes_to_send = min_for3(socket->curr_win_size , 2000 ,remaining);
+        chunks = bytes_to_send / MICROTCP_MSS;
+
+        printf("chunks before sent: %d\n", chunks);
+        for(int i = 0; i < chunks; i++){
+            printf("in for\n");
+            result = our_send(socket, buffer, MICROTCP_MSS, flags);
+            // if(result == -1) return -1;         //check later to retrasmit the pakage
+        }
+
+        /* Check if there is a semi - filled chunk*/
+        if(bytes_to_send % MICROTCP_MSS){
+            printf("in if\n");
+            result = our_send(socket, buffer, bytes_to_send % MICROTCP_MSS -32, flags);
+            bytes_to_send -= 32;
+            // if(result == -1) return -1;         //check later to retrasmit the pakage
+            chunks++;
+        }
+
+        /* Get the ACKs */
+        for(int i = 0; i < chunks; i++){ 
+            printf("in for receive\n");
+            result = our_receive(socket, flags);
+            // if(result == -1) return -1;
+        }
+        /* Retransmissions */
+        /* Update window */
+        /* Update congestion control */
+        remaining -= bytes_to_send;
+        data_sent += bytes_to_send;
+    }
+
+    // if(length > MICROTCP_MSS) length = length - (length - MICROTCP_MSS);
+    // if((length + sizeof(microtcp_header_t)) > socket->curr_win_size) length = socket->curr_win_size - sizeof(microtcp_header_t);
+    // if(length <= 0) while(wait_until_space_available(length) != 0);
+
+    return length;
+}
+
+ssize_t microtcp_recv (microtcp_sock_t *socket, void *buffer, size_t length, int flags){
+    microtcp_header_t *recv_header = malloc(sizeof(microtcp_header_t));
+    microtcp_header_t *ack_header = malloc(sizeof(microtcp_header_t));
+    size_t packet_size = sizeof(microtcp_header_t) + length, data_received = 0;
+    uint32_t retrieved_checksum = 0, checksum_num = 0;
+
+    socket->sendbuf = malloc(sizeof(microtcp_header_t));
+    memset(buffer, 0, length);
+
+    if(socket->sendbuf == NULL){
+        printf("(!) Memory allocation failed!\n");
+        exit(EXIT_FAILURE);
+    }
+    if(recv_header == NULL){
+        printf("(!) Memory allocation failed!\n");
+        exit(EXIT_FAILURE);
+    }
+    if(ack_header == NULL){
+        printf("(!) Memory allocation failed!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    socklen_t addrlen = sizeof(*(socket->client_ip));
+
+    //initalize so it goes in while
+    recv_header->data_len = MICROTCP_MSS;
+    while(1){
+        /*Server receives a package!*/
+        if(socket->server_ip == NULL){
+            if(recvfrom(socket->sd, socket->recvbuf, packet_size, 0, (struct sockaddr *)socket->client_ip, &addrlen) == -1){ //SYN
+                perror("(!) COULD NOT RECEIVE PACKET!\n");
+                return -1;
+            }
+            else printf("RECEIVED PACKAGE YAY!\n");
+            
+        }/*Client receive a package*/
+        else{
+            if(recvfrom(socket->sd, socket->recvbuf, packet_size, 0, socket->server_ip, &addrlen) == -1){ //SYN
+                perror("(!) COULD NOT RECEIVE PACKET!\n");
+                return -1;
+            }
+            else printf("RECEIVED PACKAGE YAY!\n");
+        }
+        
+        //Retrieve the data of the header of the received packet
+        memcpy(recv_header, socket->recvbuf, sizeof(microtcp_header_t));
+        
+        socket->buf_fill_level += sizeof(microtcp_header_t) + (size_t)recv_header->data_len; //Data added to recv_buff
+
+        char **buffer_msg = malloc(recv_header->data_len);
+        if(buffer_msg == NULL){
+            printf("(!) Memory allocation failed!\n");
+            exit(EXIT_FAILURE);
+        }
+        memcpy(buffer_msg, socket->recvbuf + sizeof(microtcp_header_t), (size_t)recv_header->data_len);
+
+        //Check if checksum is correct
+        retrieved_checksum = recv_header->checksum;
+        recv_header->checksum = 0;
+        packet_size = sizeof(microtcp_header_t) + recv_header->data_len;
+        memset(socket->recvbuf, 0, packet_size);
+        memcpy(socket->recvbuf, recv_header, sizeof(microtcp_header_t));
+        memcpy(socket->recvbuf + sizeof(microtcp_header_t), buffer_msg, recv_header->data_len);
+        checksum_num = crc32(socket->recvbuf, packet_size);
+
+        //CHECK ACK_NUMBERS && SEQUENCE_NUMBERS
+        if(retrieved_checksum != checksum_num){
+            perror("(!) Package has not been received correctly!\n");
+            return -1;
+        }
+        printf("Package received correctly\n");
+        printf("Package - checksum: %d\n",recv_header->checksum);
+        printf("Package - future_use0: %d\n",recv_header->future_use0);
+        printf("Package - future_use1: %d\n",recv_header->future_use1);
+        printf("Package - future_use2: %d\n",recv_header->future_use2);
+        printf("Package - ack_number: %d\n",recv_header->ack_number);
+        printf("Package - seq_number: %d\n",recv_header->seq_number);
+        printf("Package - control: %d\n",recv_header->control);
+        printf("Package - data_len: %d\n",recv_header->data_len);
+        printf("Package - window: %d\n",recv_header->window);
+        printf("\n\n");
+        
+        data_received += recv_header->data_len;
+
+        socket->curr_win_size = recv_header->window;
+
+        socket->ack_number = recv_header->seq_number + recv_header->data_len;
+
+        //Send acknowledgement
+
+
+            memset(ack_header,0,sizeof(microtcp_header_t));
+
+            // socket->seq_number = recv_header->seq_number + recv_header->data_len;
+
+            ack_header->data_len = 0;
+            ack_header->ack_number = socket->ack_number;
+            ack_header->seq_number = socket->seq_number;
+            ack_header->future_use0 = 0;
+            ack_header->future_use1 = 0;
+            ack_header->future_use2 = 0;
+            ack_header->window = socket->init_win_size - socket->buf_fill_level;
+            ack_header->checksum = 0;
+            ack_header->control = 0b0000000000001000; //Ack 
+
+
+            
+            
+            memcpy(socket->sendbuf, ack_header, sizeof(microtcp_header_t));
+            checksum_num = crc32(socket->sendbuf, sizeof(microtcp_header_t));
+            ack_header->checksum = checksum_num;
+            memset(socket->sendbuf, 0, sizeof(microtcp_header_t));
+            memcpy(socket->sendbuf, ack_header, sizeof(microtcp_header_t));
+            //Sending ACK 
+            if(socket->client_ip == NULL){
+                if(sendto(socket->sd, socket->sendbuf, sizeof(microtcp_header_t), 0, socket->server_ip, sizeof(*(socket->server_ip))) == -1){
+                    perror("(!) COULD NOT SENT ACK PACKET!\n");
+                    return -1;
+                }
+                else printf("SENT ACK PACKAGE!\n\n");
+            }else{
+                if(sendto(socket->sd, socket->sendbuf, sizeof(microtcp_header_t), 0, (struct sockaddr *)socket->client_ip,sizeof(*(socket->client_ip))) == -1){
+                    perror("(!) COULD NOT SENT ACK PACKET!\n");
+                    return -1;
+                }
+                else printf("SENT ACK PACKAGE!\n\n");
+            }
+
+
+        //When our rwnd is "0" (leave 32 bytes for the incoming empty probes)
+        if(socket->init_win_size - socket->buf_fill_level == 32){
+            //copy data to users_buffer
+            if(length >= recv_header->data_len){
+                memcpy(buffer, socket->recvbuf, MICROTCP_RECVBUF_LEN - 32);
+                length -= MICROTCP_RECVBUF_LEN - 32;
+            }
+            else{
+                printf("(!)Not enough space in user's buffer to accomodate data.\n");
+                return -1;
+            }
+            socket->buf_fill_level = socket->buf_fill_level - sizeof(microtcp_header_t) - (size_t)recv_header->data_len;
+
+        }
+
+        
+        
+        //Return data to user and release from recv_buff
+
+
+        checksum_num = 0;
+        retrieved_checksum = 0;
+        memset(socket->sendbuf, 0, sizeof(microtcp_header_t));
+        free(buffer_msg);
+    }
+    
+    
+    free(recv_header);
+    free(ack_header);
+    free(socket->sendbuf);
+
+    
+    return recv_header->data_len;
+}
+
+ssize_t min_for3(size_t a, size_t b, size_t c){
+	return min(a,min(b,c));
+}
+
+ssize_t our_send(microtcp_sock_t *socket, const void *buffer, size_t length, int flags){
+    size_t packet_size = sizeof(microtcp_header_t) + length;
+    uint32_t checksum_num = 0, retrieved_checksum;
+    microtcp_header_t *send_header = malloc(sizeof(microtcp_header_t));
+
+    printf("in our send\n");
+    
     if(send_header == NULL){
         printf("(!) Memory allocation failed!\n");
         exit(EXIT_FAILURE);
@@ -680,7 +917,7 @@ ssize_t microtcp_send (microtcp_sock_t *socket, const void *buffer, size_t lengt
     send_header->future_use0 = 0;
     send_header->future_use1 = 0;
     send_header->future_use2 = 0;
-    send_header->window = socket->curr_win_size; //NOT SURE
+    send_header->window = socket->init_win_size - socket->buf_fill_level;
     send_header->checksum = 0;
     send_header->control = 0b0000000000001000;   //ACK
 
@@ -714,30 +951,27 @@ ssize_t microtcp_send (microtcp_sock_t *socket, const void *buffer, size_t lengt
             return -1;
         }
     }
-
-    socket->seq_number = socket->seq_number + length + sizeof(microtcp_header_t);
+    printf("SENT PACKAGE\n");
+    socket->seq_number += send_header->data_len;
 
     free(send_header);
     free(socket->sendbuf);
+
     return length;
 }
 
-ssize_t microtcp_recv (microtcp_sock_t *socket, void *buffer, size_t length, int flags){
-    microtcp_header_t *recv_header = malloc(sizeof(microtcp_header_t));
-    size_t packet_size = sizeof(microtcp_header_t) + length;
-    uint32_t retrieved_checksum = 0, checksum_num = 0;
 
-    if(recv_header == NULL){
+ssize_t our_receive(microtcp_sock_t* socket, int flags){
+    microtcp_header_t *recv_ack_header = malloc(sizeof(microtcp_header_t));
+    size_t packet_size = sizeof(microtcp_header_t);
+    uint32_t checksum_num = 0, retrieved_checksum = 0;
+
+     printf("in our receive\n");
+
+    if(recv_ack_header == NULL){
         printf("(!) Memory allocation failed!\n");
         exit(EXIT_FAILURE);
     }
-
-    socket->recvbuf = malloc(packet_size);  //Allocate space for the recvbuffer and initialize
-    if(socket->recvbuf == NULL){
-        printf("(!) Memory allocation failed!\n");
-        exit(EXIT_FAILURE);
-    }
-    memset(socket->recvbuf, 0, packet_size);
 
     socklen_t addrlen = sizeof(*(socket->client_ip));
     /*Server receives a package!*/
@@ -748,6 +982,7 @@ ssize_t microtcp_recv (microtcp_sock_t *socket, void *buffer, size_t length, int
         }
         else printf("RECEIVED PACKAGE YAY!\n");
         
+        
     }/*Client receive a package*/
     else{
         if(recvfrom(socket->sd, socket->recvbuf, packet_size, 0, socket->server_ip, &addrlen) == -1){ //SYN
@@ -757,47 +992,71 @@ ssize_t microtcp_recv (microtcp_sock_t *socket, void *buffer, size_t length, int
         else printf("RECEIVED PACKAGE YAY!\n");
     }
     
-    
     //Retrieve the data of the header of the received packet
-    memcpy(recv_header, socket->recvbuf, sizeof(microtcp_header_t));
-    char **buffer_msg;
-    buffer_msg = malloc(recv_header->data_len);
-    memcpy(buffer_msg, socket->recvbuf + sizeof(microtcp_header_t), (size_t)recv_header->data_len);
+    memcpy(recv_ack_header, socket->recvbuf, sizeof(microtcp_header_t));
 
     //Check if checksum is correct
-    retrieved_checksum = recv_header->checksum;
-    recv_header->checksum = 0;
-    packet_size = sizeof(microtcp_header_t) + recv_header->data_len;
-    socket->recvbuf = realloc(socket->recvbuf, packet_size);
-    memset(socket->recvbuf, 0, packet_size);
-    memcpy(socket->recvbuf, recv_header, sizeof(microtcp_header_t));
-    memcpy(socket->recvbuf + sizeof(microtcp_header_t), buffer_msg, recv_header->data_len);
-    checksum_num = crc32(socket->recvbuf, packet_size);
+    retrieved_checksum = recv_ack_header->checksum;
+    recv_ack_header->checksum = 0;
+    memset(socket->recvbuf, 0, sizeof(microtcp_header_t));
+    memcpy(socket->recvbuf, recv_ack_header, sizeof(microtcp_header_t));
+    checksum_num = crc32(socket->recvbuf, sizeof(microtcp_header_t));
 
+    //CHECK ACK_NUMBERS && SEQUENCE_NUMBERS
     if(retrieved_checksum != checksum_num){
         perror("(!) Package has not been received correctly!\n");
         return -1;
     }
-    printf("Package received correctly\n");
-    
-    printf("Package - checksum: %d\n",recv_header->checksum);
-    printf("Package - future_use0: %d\n",recv_header->future_use0);
-    printf("Package - future_use1: %d\n",recv_header->future_use1);
-    printf("Package - future_use2: %d\n",recv_header->future_use2);
-    printf("Package - ack_number: %d\n",recv_header->ack_number);
-    printf("Package - seq_number: %d\n",recv_header->seq_number);
-    printf("Package - control: %d\n",recv_header->control);
-    printf("Package - data_len: %d\n",recv_header->data_len);
-    printf("Package - window: %d\n",recv_header->window);
+    printf("Package received ACK correctly\n");
+    printf("Package - checksum: %d\n",recv_ack_header->checksum);
+    printf("Package - future_use0: %d\n",recv_ack_header->future_use0);
+    printf("Package - future_use1: %d\n",recv_ack_header->future_use1);
+    printf("Package - future_use2: %d\n",recv_ack_header->future_use2);
+    printf("Package - ack_number: %d\n",recv_ack_header->ack_number);
+    printf("Package - seq_number: %d\n",recv_ack_header->seq_number);
+    printf("Package - control: %d\n",recv_ack_header->control);
+    printf("Package - data_len: %d\n",recv_ack_header->data_len);
+    printf("Package - window: %d\n",recv_ack_header->window);
     printf("\n\n");
 
-    memset(buffer, 0, length);
-    memcpy(buffer, socket->recvbuf + sizeof(microtcp_header_t), recv_header->data_len);
-    socket->ack_number = recv_header->seq_number + recv_header->data_len;
-    
-    free(recv_header);
-    free(socket->recvbuf);
-    free(buffer_msg);
+    socket->curr_win_size = recv_ack_header->window;
 
-    return recv_header->data_len;
+    return 0;
 }
+
+
+//TODO: fixare to problhma me to infinite loop kai ta 32 bytes poy xanontai sthn send kai receive
+
+
+
+//CWND : Einai gia to congestion control. LastByteSent-LastByteAcked <= cwnd.
+//Ta bytes poy stelneis ana pasa stigmh, dhladh ayta poy hdh einai ka8odon kai 
+//ayta poy stelneis twra, prepei na einai mikrotera se mege8os apo to cwnd alliws
+//ousiastika stelneis perissotera apo oti mporei na dex8ei o allos.
+
+
+//SLOW START: 3ekinaei me cwnd = 1MSS,se ka8e RTT(ack) to cwnd diplasiazetai.
+//Otan prokypsei congestion to ssthresh pairnei thn timh ssthresh = 1/2 *cwnd
+//Thn epomenh fora poy 8a 3ekhnsei pali to cwnd na au3anetai, molis ftasei/perasei
+//to ssthresh tote stamataei na diplasiazetai kai au3anetai grammika kata 1.
+
+
+//1st step: pare arketo xwro gia ta arxika mnmt sto three way hanshake                      +
+
+//2nd step: sto telos ths connect kai ths accept, malloc to init_window_size gia ton recv   +
+//kai free sto telos ths shutdown.
+
+//3rd step: bgale ola ta malloc poy ginontai ston socket->recv_buff                         +
+
+//4th step: Sthn receive, Bale sto diko soy socket->curr_win = header->window.              +
+//Bale socket->buff_fill_level += received_data. Steile ACK ston sender me 
+//header->window = socket->init_window - buff_fill_Level (DIKO SOU CURR_WINDOW_SIZE).
+
+//5th step: Sthn send,bale ta acknowledgments. Bale to header->window = socket->init_window - buff_fill_Level (DIKO SOU CURR_WINDOW_SIZE).
+//Bale sthn send periorismo: X <= MICROTCP_MSS && X <= socket->curr_window_size(Tou alounou)
+
+//6th step: Sto telos ths receive, socket->buff_fill_level -= received_data                 +
+
+//7th step: Sthn send, an to socket->curr_window_size == 0, prin kan ftia3eis ton header. Stelne header
+//xwris data mexri na pareis ACK me header->window > 0 ana random diasthmata meta3y 0...MICROTCP_ACK_TIMEOUT_US.Meta
+//ananewse to socket->curr_win_size = header->window kai steile to paketo soy opou SIZE < socket->window.

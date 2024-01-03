@@ -67,7 +67,6 @@ int main(int argc,char **argv) {
     }
 
    
-
     client_connected = microtcp_accept(&serverSocket,(struct sockaddr*)&client_addr,sizeof(client_addr));
 
     if (client_connected != -1){
@@ -78,8 +77,8 @@ int main(int argc,char **argv) {
     }
 
 
-    char buffer[100];
-    while(1){   
+    char buffer[100000];
+    while(1){
         microtcp_recv(&serverSocket, &buffer, sizeof(buffer), 0);
 
         if(!strcmp(buffer, "shutdown") || !strcmp(buffer, "SHUTDOWN")){

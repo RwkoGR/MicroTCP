@@ -27,6 +27,10 @@
 #include <sys/socket.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
+
+
+#define min(a,b) (((a) < (b)) ? (a) : (b))
 
 /*
  * Several useful constants
@@ -37,6 +41,7 @@
 #define MICROTCP_WIN_SIZE MICROTCP_RECVBUF_LEN
 #define MICROTCP_INIT_CWND (3 * MICROTCP_MSS)
 #define MICROTCP_INIT_SSTHRESH MICROTCP_WIN_SIZE
+
 
 /**
  * Possible states of the microTCP socket
@@ -112,6 +117,18 @@ typedef struct
     uint32_t future_use2;         /**< 32-bits for future use */
     uint32_t checksum;            /**< CRC-32 checksum, see crc32() in utils folder */
 } microtcp_header_t;
+
+
+
+
+
+ssize_t min_for3(size_t a, size_t b, size_t c);
+
+ssize_t our_send(microtcp_sock_t *socket, const void *buffer, size_t length, int flags);
+
+ssize_t our_receive(microtcp_sock_t* socket, int flags);
+
+
 
 
 microtcp_sock_t
