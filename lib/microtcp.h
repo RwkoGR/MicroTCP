@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 
 #define min(a,b) (((a) < (b)) ? (a) : (b))
@@ -37,7 +38,7 @@
  */
 #define MICROTCP_ACK_TIMEOUT_US 200000
 #define MICROTCP_MSS 1400
-#define MICROTCP_RECVBUF_LEN 8192
+#define MICROTCP_RECVBUF_LEN 1073741824 
 #define MICROTCP_WIN_SIZE MICROTCP_RECVBUF_LEN
 #define MICROTCP_INIT_CWND (3 * MICROTCP_MSS)
 #define MICROTCP_INIT_SSTHRESH MICROTCP_WIN_SIZE
@@ -90,8 +91,13 @@ typedef struct
     size_t cwnd;
     size_t ssthresh;
 
+    size_t relative_seq_number;   /**< Keep the initial random sequence number  */
     size_t seq_number;            /**< Keep the state of the sequence number */
     size_t ack_number;            /**< Keep the state of the ack number */
+    size_t last_ack_number;       /**< Keep the state of the last ack number */
+    size_t duplicate_ack_count;   /**< Keep the state of the duplicate ack count */
+
+
     uint64_t packets_send;
     uint64_t packets_received;
     uint64_t packets_lost;
